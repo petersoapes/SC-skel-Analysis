@@ -57,7 +57,7 @@ print("end blue channel processing. centCount: "+centromereCount);
 //start green channel processing
 print("processing green channel");
 wait(500);
-selectImage(2);
+//selectImage(2);
 selectWindow(greenImage);
 run("Threshold...");
 waitForUser("Step 1, Thresholding", "Adjust threshold for foci signal then press OK" );
@@ -71,9 +71,7 @@ allfociY = newArray();
 for(f=centromereCount;f<roiManager("count");f++) {
 	fociCount++;
 	roiManager("select", f);
-
-	Roi.setProperty("paired", 10);//setting this property to for further blobject
-	
+	Roi.setProperty("paired", false);//setting this property to for further blobject
 	roiManager("Rename", roiManager("index")+ "foci "+ fociCount);//renaming to keep track of rois
 	setResult("FociIndex",f, fociCount);
 	//add to foci coordinates
@@ -87,23 +85,32 @@ selectWindow(redImage);
 run("Threshold...");
 waitForUser("Step 1, Thresholding", "Adjust threshold for foci signal then press OK" );
 
+wait(500);
+//results very full, and these measures aren't needed
+//selectWindow('Results');////i don't think windows should be closed from within a function
+//run("Close");//results must be  'R'
+//this might not be working
+
 run("Convert to Mask");
 //run("Dilate");
 run("Despeckle");
 //run("Skeletonize"); // skeleton may not be best for the ridge detection 
 run("Invert LUT");//activating the LUT allows ridge detection to be run
 // Requires the Ridge Detection plugin from the Biomedgroup update site.
-
+wait(500);
 //run("Ridge Detection", "line_width=2 high_contrast=255 low_contrast=240 add_to_manager");
 run("Ridge Detection", "line_width=2 high_contrast=255 low_contrast=240 extend_line show_junction_points show_ids displayresults add_to_manager method_for_overlap_resolution=SLOPE sigma=1.2 lower_threshold=16.83 upper_threshold=40");
 //sigma 1.2, lower 16.83, upper 40
 setBatchMode("hide"); // hide the UI for this computation to avoid unnecessary overhead
 
+
+//error throwing here. 1 item not selected
+
 //rename all the SC
 scCount = 0;
 JPcount = 0;
 for(o=centromereCount;o<roiManager("count");o++){ //roimanager error after RD, requires one item to be selected
-	roiManager("select",o);
+	roiManager("select", o);
 	if (startsWith(Roi.getName(), "C")) {
 			roiManager("Rename", roiManager("index") + "SC ");
 			scCount++;
@@ -115,12 +122,13 @@ for(o=centromereCount;o<roiManager("count");o++){ //roimanager error after RD, r
 			
 	if (startsWith(Roi.getName(), "JP-")) {
 		roiManager("delete");
-		//roiManager("select",roiManager("count")-1); // JP items are not being deleted
+		//o--;
+		roiManager("select",roiManager("count")-1); // JP items are not being deleted
 		//select another item?
 		//deleting without selecting the next thing causes an error
 		}//when changed to count-1, the roi manager error 
 }
-run("Tile");
+//run("Tile");
 selectWindow(redImage);
 run("Close"); 
 selectWindow(greenImage);
@@ -233,9 +241,9 @@ for(approv1=roiManager("count")-1; approv1 > centromereCount+fociCount+scCount-1
 		roiManager("Select", approv1);
 		print("Confirm blobs. Checking blobs " + approv1 +"  "+Roi.getName());
 		waitForUser("Step 2: Blob Approval. Paused for adjustment."+ "\n"+
-		""+"\n"+
-		"");		
-		if(matches(Roi.getName(), ".*blob.*")) {
+		""+"\n"+"");		
+		
+		if(matches(Roi.getName(), ".*blob.*")) {  //might be throwing error	
 			selectWindow("duplicate");//
 			roiManager("Select", approv1);//this should higlight roi on activated window
 			Dialog.create("Blobject Manager");
@@ -244,17 +252,21 @@ for(approv1=roiManager("count")-1; approv1 > centromereCount+fociCount+scCount-1
 			status = Dialog.getChoice();
 			if(status=="Accept blob") {
 	//soo.. nothing happens yet when blobs are approved
-				
+				roiManager("Select", approv1);
+				Roi.setProperty("blob_class", "blob");
 			} if(status=="XY") {
 				roiManager("Select", approv1);
 				Roi.setProperty("blob_class", "XY");//this label is not translating into the 2CO...
 				print('setting property to XY: '+ Roi.getProperty("blob_class") );
-			} if(status=="poke"){
+			
+			}if(status=="poke"){
 				waitForUser("paused for poking around");
-			}			
-			else if (status=="delete") {
-				delete_array = Array.concat(approv1);
 			}
+			if(status=="delete") {
+				roiManager("Select", approv1);
+				delete_array = Array.concat(approv1);
+				Roi.setProperty("blob_class", "delete");
+			}//error might be generated here, because a single thing isn't selected
 		}								
     }
 //2nd automation step --- added foci, 
@@ -300,39 +312,48 @@ while(y>1){
 }
 print("finished making new blobs");
 
+wait(50);
+//
 //this second approval step doesn't seem to be activating
-aprov2_indx = (roiManager("count")-1) - count_before; 
-//add a second approval / CO categorization here for the new blobs
-//start another approval loop at aprov2_indx
-for(aprv2= count_before+aprov2_indx; aprv2 > roiManager("count")-1; aprv2++){
-		roiManager("Select", aprv2);
-		print("Confirm blobs. Checking blobs " + aprv2 +"  "+Roi.getName());
-		waitForUser("Step 2: Blob Approval. Paused for adjustment."+ "\n"+
-		""+"\n"+
-		"");		
-		if(matches(Roi.getName(), ".*blob.*")) {
-			selectWindow("duplicate");//
-			roiManager("Select", aprv2);//this should higlight roi on activated window
-			Dialog.create("Blobject Manager");
-			Dialog.addChoice(Roi.getName()+": ", newArray("Accept blob", "delete", "XY", "poke"));
-			Dialog.show();		
-			status = Dialog.getChoice();
-			if(status=="Accept blob") {
-	//soo.. nothing happens yet when blobs are approved
-				
-			} if(status=="XY") {
-				roiManager("Select", aprv2);
-				Roi.setProperty("blob_class", "XY");//this label is not translating into the 2CO...
-				print('setting property to XY: '+ Roi.getProperty("blob_class") );
-			} if(status=="poke") {
-				waitForUser("paused for poking around");
-			}
-			else if (status=="delete") {
-				delete_array = Array.concat(aprv2);
-			}
-		}								
-    }
+//add at last approval step before final printing. mostly 
+//first step, approve, delete or reafirm XY
+//this should go through all blobjects
+//aprv2 = 0;
 
+aprov2_indx = (roiManager("count")-1) - count_before; 
+q=100;
+print("start second approval match");//this prints, 
+//aproval skipped
+//while(q>1){	//this causes the menu to stall on a single biv
+Dialog.create("Approve 2 menu");
+for(aprv2= 0; aprv2 > roiManager("count")-1; aprv2++){
+	roiManager("Select", aprv2);
+	if(matches(Roi.getName(), ".*blob.*")) {
+		Dialog.create("Approve 2 menu");
+		Dialog.addChoice("Final approval step", newArray("Approve", "XY", "Delete", "finish"));	
+		Dialog.show();
+		status2 = Dialog.getChoice();			
+//only select rois for <non deleted> rois
+		print("Confirm blobs. Checking blobs " + aprv2 +"  "+Roi.getName());
+		waitForUser("Step 2: Blob Approval. Paused for adjustment."+ "\n"+""+"\n"+"");
+		if(status2 =="Approve"){
+		//don't do anything	
+			}
+		if(status2 =="XY"){
+			roiManager("Select", aprv2);
+			Roi.setProperty("blob_class", "XY");//this label is not translating into the 2CO...
+			print('setting property to XY: '+ Roi.getProperty("blob_class") );
+			}
+		if(status2 =="Delete"){
+			delete_array = Array.concat(aprv2);
+			Roi.setProperty("blob_class", "delete");
+			}
+		if(status2 =="finish"){
+				//q=0;
+				}
+			}
+		}
+//}		
 //create Blobjects, blobs + foci
 print("starting to add foci to blobs to make blobjects");
 for(ber=roiManager("count")-1; ber > centromereCount+fociCount+scCount-1; ber--){
@@ -341,7 +362,8 @@ for(ber=roiManager("count")-1; ber > centromereCount+fociCount+scCount-1; ber--)
 	roiManager("Select", ber);	
 	print("start foci adding, on blob "+ber);
 	if(matches(Roi.getName(), ".*_blo.*")){
-		makeBlobject(ber);//first time function called
+//stop the makeBlobject for the SC skel. 
+	//	makeBlobject(ber);//first time function called
 	}else{
 		continue;
 	}
@@ -376,13 +398,11 @@ run("Close");
 print("running SC total function");
 c = SC_totals();
 
-//file is not writing..?  delete array undefined
 //f = File.open("");
 f = File.open("/Users/alpeterson7/Documents/imageAnalysis/hand measures/G male/"+T+".txt");//title
 //f = File.open("/Users/April/Desktop/"+T+".txt"); // create unique file for each image -- with title of image.
 print(f,"image title"+"\t"+"blobject name"+"\t"+"SClength results"+"\t"+"SC length array"+"\t"+"correct"+"\t" +"blobjectClass"+"\t"+"reverse"+
 "\t"+"IFD"+"\t"+"prox foci position"+"\t"+"distal foci position"+"\t"+"notes");
-
 //
 print("about to delete delete_array ");
 printArray(delete_array);
@@ -392,7 +412,7 @@ printArray(delete_array);
 //prevent delete_array blobjects from being printed
 for(bb =roiManager("count")-blobcount-1; bb < roiManager("count"); bb++){
 	roiManager("select", bb);
-	if(matches(Roi.getName(), ".*blo.*") && !delete_array) { //
+	if(matches(Roi.getName(), ".*blo.*") && !delete_array) { //the anti delete array isn't workign
 	print("properties test: "+Roi.getName()+"  :"+Roi.getProperties());//position of foci not as 
 //correct the reverse values
 	//Array.reverse() // is a ready made function
@@ -400,14 +420,7 @@ for(bb =roiManager("count")-blobcount-1; bb < roiManager("count"); bb++){
 	print("rev value is "+rev_val);
 	prox_foci = Roi.getProperty("prox foci position");
 	distal_foci = Roi.getProperty("distal foci position");
-		if(rev_val == 1){ //this rev value should be deleted
-			print("adjusting values before printing");
-			array_scL = Roi.getProperty("SC array length");//macro and user generated blobjects should have this property
-			prox_foci = Roi.getProperty("prox foci position");
-			distal_foci = Roi.getProperty("distal foci position");
-			prox_foci  = (parseFloat(array_scL) - parseFloat(prox_foci));
-			distal_foci = (parseFloat(array_scL) - parseFloat(distal_foci));
-			}
+		
 	print(f, T+"\t" + Roi.getName() + "\t" 
 	 + Roi.getProperty("SC Results length") + "\t"
 	 + Roi.getProperty("SC array length")+"\t"
@@ -417,11 +430,14 @@ for(bb =roiManager("count")-blobcount-1; bb < roiManager("count"); bb++){
 	 + Roi.getProperty("IFD") + "\t"
 	 + prox_foci + "\t"
 	 + distal_foci);
+	
 	}
 	//do not print in this loop, it will repeat for each line	
+
 }
 print(f, "\n" +T + "\t" + "Autosome SC skel total" + "\t" +"XY SC skel total");
-print(f, "\n"+ T + "\t" + c[0] +"\t"  + c[1]);
+print(f, T + "\t" + c[0] +"\t"  + c[1]);
+print(f,  T+"\t"+c[2]+"\t"+c[3]);
 //close f file
 File.close(f);
 
@@ -450,18 +466,7 @@ function reverseArray(a) {
        }
   }//end function  
 
-//this function doesn't really work yet
-function updateBlobject(newPiece, blobj) {
-//window prompt for 
-	roiManager("Select", newArray(newPiece, blobj));
-//for true update -- get index of blob, delete old blob, set index of new blob, update manager
-//true update may not be possible --can't find a ways to set the roi index
-	roiManager("Combine");
-	roiManager("Add");
-	roiManager("Select", roiManager("count")-1);
-	roiManager("Rename", roiManager("index")+"upD_blobject"); //caution with the rename part... 		
-//code in way to exit!!
-}
+
 //function below seems to be working!! //function (cen,[SC]) optional -- if variable for SC is enter -- skip to join
 function makeBlob(cen){
 	roiManager("Select", cen); 
@@ -475,10 +480,11 @@ function makeBlob(cen){
 		if(matches(Roi.getName(), ".*SC.*")) { //test if this is selecting splines from Cleave
 			//measure and extract length information
 			//delete result window..?
-			selectWindow(Results);
-			run("Close"); 
 			run("Measure");
-  			SClength = getResult('Length', nResults);
+			//selectWindow('Results');////i don't think windows should be closed from within a function
+			//run("Close"); //closing this window is throwing a non-selection error
+			print("the number of results before error: " + nResults);
+  			SClength = getResult('Length', nResults-1);//throwing error			
 			Roi.getCoordinates(SCx, SCy);
 				paired=false;
 				//rev=false; // not sure if this should be rev
@@ -495,10 +501,11 @@ function makeBlob(cen){
 									SCy = Array.reverse(SCy);
 									//rev=true;
 									}
-		 					//	roiManager("select", noncen); //selecting the current sc
-		 					//	run("Measure");
-							//	length1 = getResult('length', nResults-1);							
-								SClength = Roi.setProperty("SC Results length");//SC Results Length
+		 						roiManager("select", noncen); //selecting the current sc
+		 						run("Measure");
+								length1 = getResult('Length', nResults-1);	//don't know why there are two property assignments of Length from Results...						
+								Roi.setProperty("SC Results length", length1);//SC Results Length
+		 						
 		 						print("the SC length from the SC is "+SClength);
 		 						blob_parts = Array.concat(cen, noncen);//noncen = SC
 		 						
@@ -511,8 +518,8 @@ function makeBlob(cen){
 								//if(rev == true){
 									//Roi.setProperty("reverse", '1');//this should be blobject property
 								//}
+								Roi.setProperty("SC Results length", length1);//this is zero
 								Roi.setProperty("SC length", SClength);
-								Roi.setProperty("SC Results length", length1);
 								Roi.setProperty("SC index", noncen);				
 								roiManager("update");
 								noncen=1000; //break out of loop by overcounting 
@@ -539,21 +546,14 @@ function makeBlob2(cen, sc){
   		Roi.getCoordinates(nSCx, nSCy);
 //add code to test if SC array coordinates start in centromere		
 		roiManager("Select", cent);
-		manual_reverse = 0;
 		if(Roi.contains(nSCx[0], nSCy[0])) { //ask if first coordinate is in centromere
 			print(cen + " " + sc + "SC array starts at centromere");//no reverse needed
 			//Roi.setProperty("reverse", 2);//reverse set to 0 is messing up manual blobjects 
 //why should this still be reversed		
-			//array.reverse	
 		} if(Roi.contains(nSCx[nSCx.length-1], nSCy[nSCy.length-1])) { //ask if last coordinate is in centromere
-			//which array should be reversed
 			nSCx = Array.reverse(nSCx);
 			nSCy = Array.reverse(nSCy);
 			print(cen + " " + sc + "centromere is at end of array. Array reversed with function");
-			
-			//Roi.setProperty("reverse", '1'); //reverse property set to centromere, assign this property to SC/blobject
-			//manual_reverse = '1';
-			
 		}
 //why are these called in makeBlob? asking it these are set to centromere
 		bc = Roi.getProperty("blob_class");
@@ -564,7 +564,6 @@ function makeBlob2(cen, sc){
   		roiManager("Select", roiManager("count")-1);//assign properties
 		print("setting properties of new  blobject "+Roi.getName()); 
 //set the same property for macro generated blobjects	
-		Roi.setProperty("reverse", manual_reverse);
 		Roi.setProperty("SC array length", nSCx.length);//this length value might be less accurate than the legnth from results
 		Roi.setProperty("SC Results length", SClength);//SC length from results page
 		Roi.setProperty("SC index", sc);//maybe doing measure then assign	
@@ -573,7 +572,6 @@ function makeBlob2(cen, sc){
   		Roi.setProperty("distal foci position", dfp);
   		roiManager("update");
     }	//end function
-
 
 
 function makeBlobject(blob){
@@ -681,6 +679,8 @@ function makeBlobject(blob){
 						roiManager("deselect");
 						roiManager("Select", blob);
 						roiManager("Rename", roiManager("index")+"blobject");
+//enter SC length here?						
+						
 						//fpaired=true;
 						h = 5000; //break out of loop
 						roiManager("update");
@@ -795,41 +795,49 @@ function isNear(x1,y1,x2,y2, min_distance) {
 return false;
 }//end isNear funciton
 
+//added the number of values used for calq the sums
 function SC_totals(){
 SC_XY_total = 0;
 SC_A_total = 0;
+SC_A_num =0;
+SC_XY_num =0;
 for(c=0;c<roiManager("count");c++) {
 	roiManager("select", c);
-	if(matches(Roi.getName(), ".*blobject.*")){
+	if(matches(Roi.getName(), ".*blob.*")){
 		obj_class = Roi.getProperty("blob_class");
 		if(obj_class == "XY"){
 			//sc length results aren'y set yet
 			XY_rlength = Roi.getProperty("SC Results length");
 			XY_length = Roi.getProperty("SC array length");
-			SC_XY_total = XY_length + SC_XY_total;
+			SC_XY_total = abs(parseFloat(XY_length) + parseFloat(SC_XY_total));
+			SC_XY_num = abs(parseFloat(SC_XY_num)+1);
 		} 
-		if(obj_class == "1CO"){
-			//a_length = Roi.getProperty("SC Results length");
+//adding the || blob, will allow for calculation of blobs which didn't go through makeblobject		
+		if(obj_class == "1CO" || obj_class == "blob"){
+			a_rlength = Roi.getProperty("SC Results length");
 			a_length = Roi.getProperty("SC array length");
 			//print(" 1CO math: " + a_length +" + " + SC_A_total);
-			SC_A_total = abs(parseFloat(a_length) + parseFloat(SC_A_total));	
+			SC_A_total = abs(parseFloat(a_length) + parseFloat(SC_A_total));
+			SC_A_num = abs(parseFloat(SC_A_num)+1);	
 	}
-		if(obj_class == "2CO"){
-			//aResult_length = Roi.getProperty("SC Results length");
+		if(obj_class == "2CO"|| obj_class == "blob"){
+			a_rlength = Roi.getProperty("SC Results length");
 			a_length = Roi.getProperty("SC array length");
 			//print(" 2CO math: " + a_length + " + " + SC_A_total);
 			SC_A_total = abs(parseFloat(a_length) + parseFloat(SC_A_total));
+			SC_A_num = abs(parseFloat(SC_A_num)+1);	
 		}
-		if(obj_class == "3CO"){
-			//a_rlength = Roi.getProperty("SC Results length");
+		if(obj_class == "3CO"|| obj_class == "blob"){
+			a_rlength = Roi.getProperty("SC Results length");
 			a_length = Roi.getProperty("SC array length");
-			SC_A_total = a_length + SC_A_total;
+			SC_A_total =  abs(parseFloat(a_length) + parseFloat(SC_A_total));
+			SC_A_num = abs(parseFloat(SC_A_num)+1);	
 		}		
-	   }
-	   	
+	   }	
 	}
      	print("autosomal SC calq: "+ SC_A_total);
 	    print("XY SC total calq "+ SC_XY_total);
-		sc_skel_array = newArray(SC_A_total, SC_XY_total);
+		print(" A and XY nums are: "+ SC_A_num + " and "+ SC_XY_num);
+		sc_skel_array = newArray(SC_A_total, SC_XY_total, SC_A_num, SC_XY_num);
 		return sc_skel_array;
-}//end SC total function
+}	//end SC total function

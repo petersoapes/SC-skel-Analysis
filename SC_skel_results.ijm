@@ -314,46 +314,48 @@ print("finished making new blobs");
 
 wait(50);
 //
-//this second approval step doesn't seem to be activating
-//add at last approval step before final printing. mostly 
-//first step, approve, delete or reafirm XY
-//this should go through all blobjects
-//aprv2 = 0;
-
-aprov2_indx = (roiManager("count")-1) - count_before; 
+// second approval step, for manually created blobs. Currently it has to cycle all the way through
+selectImage(1);
+//aprov2_indx = (roiManager("count")-1) - count_before; 
 q=100;
 print("start second approval match");//this prints, 
-//aproval skipped
-//while(q>1){	//this causes the menu to stall on a single biv
-Dialog.create("Approve 2 menu");
-for(aprv2= 0; aprv2 > roiManager("count")-1; aprv2++){
-	roiManager("Select", aprv2);
-	if(matches(Roi.getName(), ".*blob.*")) {
-		Dialog.create("Approve 2 menu");
-		Dialog.addChoice("Final approval step", newArray("Approve", "XY", "Delete", "finish"));	
-		Dialog.show();
-		status2 = Dialog.getChoice();			
-//only select rois for <non deleted> rois
+while(q>10){//change q, and the stuff within the loop is still running
+	for(aprv2=roiManager("count")-1; aprv2 > centromereCount+fociCount+scCount; aprv2--){ //start at SC
+		roiManager("Select", aprv2);
 		print("Confirm blobs. Checking blobs " + aprv2 +"  "+Roi.getName());
-		waitForUser("Step 2: Blob Approval. Paused for adjustment."+ "\n"+""+"\n"+"");
-		if(status2 =="Approve"){
-		//don't do anything	
-			}
-		if(status2 =="XY"){
+		waitForUser("Step 2: Blob Approval. Paused for adjustment."+ "\n"+
+		""+"\n"+"");		
+		
+		if(matches(Roi.getName(), ".*blob.*")) { 
 			roiManager("Select", aprv2);
-			Roi.setProperty("blob_class", "XY");//this label is not translating into the 2CO...
-			print('setting property to XY: '+ Roi.getProperty("blob_class") );
+
+			roiManager("Select", aprv2);//this should higlight roi on activated window
+			Dialog.create("Blobject Manager");
+			Dialog.addChoice(Roi.getName()+": ", newArray("Accept blob", "delete", "XY", "poke", "finish"));
+			Dialog.show();		
+			status2 = Dialog.getChoice();
+			if(status2 =="Accept blob") {
+				roiManager("Select", aprv2);
+				Roi.setProperty("blob_class", "blob");//before bloject, 	
 			}
-		if(status2 =="Delete"){
-			delete_array = Array.concat(aprv2);
-			Roi.setProperty("blob_class", "delete");
+			if(status2 =="XY"){
+				roiManager("Select", aprv2);
+				Roi.setProperty("blob_class", "XY");//this label is not translating into the 2CO...
+				print('setting property to XY: '+ Roi.getProperty("blob_class") );
 			}
-		if(status2 =="finish"){
-				//q=0;
+			if(status2 =="Delete"){
+				delete_array = Array.concat(aprv2);
+				Roi.setProperty("blob_class", "delete");
+			}
+			if(status2 =="finish"){
+				q=1;  //when break out of this loop, the counter through roi manager keeps going
+				//aprv2 = 100; //final count 100 
 				}
 			}
 		}
-//}		
+	}	
+
+	
 //create Blobjects, blobs + foci
 print("starting to add foci to blobs to make blobjects");
 for(ber=roiManager("count")-1; ber > centromereCount+fociCount+scCount-1; ber--){
@@ -363,7 +365,7 @@ for(ber=roiManager("count")-1; ber > centromereCount+fociCount+scCount-1; ber--)
 	print("start foci adding, on blob "+ber);
 	if(matches(Roi.getName(), ".*_blo.*")){
 //stop the makeBlobject for the SC skel. 
-	//	makeBlobject(ber);//first time function called
+		makeBlobject(ber);//first time function called
 	}else{
 		continue;
 	}
@@ -807,37 +809,39 @@ for(c=0;c<roiManager("count");c++) {
 		obj_class = Roi.getProperty("blob_class");
 		if(obj_class == "XY"){
 			//sc length results aren'y set yet
-			XY_rlength = Roi.getProperty("SC Results length");
-			XY_length = Roi.getProperty("SC array length");
+			XY_length = Roi.getProperty("SC Results length");
+			print(" XY math: " + XY_length +" + " + SC_XY_total);
+			//XY_length = Roi.getProperty("SC array length");
 			SC_XY_total = abs(parseFloat(XY_length) + parseFloat(SC_XY_total));
 			SC_XY_num = abs(parseFloat(SC_XY_num)+1);
 		} 
 //adding the || blob, will allow for calculation of blobs which didn't go through makeblobject		
 		if(obj_class == "1CO" || obj_class == "blob"){
-			a_rlength = Roi.getProperty("SC Results length");
-			a_length = Roi.getProperty("SC array length");
-			//print(" 1CO math: " + a_length +" + " + SC_A_total);
+			a_length = Roi.getProperty("SC Results length");
+			//a_length = Roi.getProperty("SC array length");
+			print(" 1CO math: " + a_length +" + " + SC_A_total);
 			SC_A_total = abs(parseFloat(a_length) + parseFloat(SC_A_total));
 			SC_A_num = abs(parseFloat(SC_A_num)+1);	
 	}
-		if(obj_class == "2CO"|| obj_class == "blob"){
-			a_rlength = Roi.getProperty("SC Results length");
-			a_length = Roi.getProperty("SC array length");
+		if(obj_class == "2CO"){ //removing additional blobs since I think SC is being added multiple times.
+			a_length = Roi.getProperty("SC Results length");
+			//a_length = Roi.getProperty("SC array length");
 			//print(" 2CO math: " + a_length + " + " + SC_A_total);
 			SC_A_total = abs(parseFloat(a_length) + parseFloat(SC_A_total));
 			SC_A_num = abs(parseFloat(SC_A_num)+1);	
 		}
-		if(obj_class == "3CO"|| obj_class == "blob"){
-			a_rlength = Roi.getProperty("SC Results length");
-			a_length = Roi.getProperty("SC array length");
+		if(obj_class == "3CO"){
+			a_length = Roi.getProperty("SC Results length");
+			//a_length = Roi.getProperty("SC array length");
 			SC_A_total =  abs(parseFloat(a_length) + parseFloat(SC_A_total));
 			SC_A_num = abs(parseFloat(SC_A_num)+1);	
 		}		
-	   }	
+	   }
+	   	
 	}
      	print("autosomal SC calq: "+ SC_A_total);
 	    print("XY SC total calq "+ SC_XY_total);
 		print(" A and XY nums are: "+ SC_A_num + " and "+ SC_XY_num);
 		sc_skel_array = newArray(SC_A_total, SC_XY_total, SC_A_num, SC_XY_num);
 		return sc_skel_array;
-}	//end SC total function
+}//end SC total function

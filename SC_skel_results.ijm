@@ -109,7 +109,7 @@ setBatchMode("hide"); // hide the UI for this computation to avoid unnecessary o
 //rename all the SC
 scCount = 0;
 JPcount = 0;
-for(o=centromereCount;o<roiManager("count");o++){ //roimanager error after RD, requires one item to be selected
+for(o=centromereCount; o<roiManager("count");o++){ //roimanager error after RD, requires one item to be selected
 	roiManager("select", o);
 	if (startsWith(Roi.getName(), "C")) {
 			roiManager("Rename", roiManager("index") + "SC ");
@@ -122,8 +122,9 @@ for(o=centromereCount;o<roiManager("count");o++){ //roimanager error after RD, r
 			
 	if (startsWith(Roi.getName(), "JP-")) {
 		roiManager("delete");
-		//o--;
-		roiManager("select",roiManager("count")-1); // JP items are not being deleted
+		o--;
+//not all of the JPs are being deleted, this messes up		
+		//roiManager("select",roiManager("count")-1); // JP items are not being deleted
 		//select another item?
 		//deleting without selecting the next thing causes an error
 		}//when changed to count-1, the roi manager error 
@@ -184,6 +185,7 @@ while(y>1){
 		Stitch(first, sec, cent_indx);
 		roiManager("update");
 	} //go back to menu
+	
 	if (status1=="poke") {
 		waitForUser("paused for poking around");
 		
@@ -233,54 +235,19 @@ for(cen=0;cen < centromereCount;cen++){
 }
 print("finished centromere pairing. "+ blobcount+ "   is blobcount");	
 
+//removed approve1 loop and move straight to make new blobs
+
 //move delete array step into the Purge function
 delete_array = newArray('first', 0); // if delete_array is empty, all rois will be deleted
-selectImage(1); //1 should be the duplicate
-//selectWindow(duplicate);//select window throws error
-for(approv1=roiManager("count")-1; approv1 > centromereCount+fociCount+scCount-1; approv1--){
-		roiManager("Select", approv1);
-		print("Confirm blobs. Checking blobs " + approv1 +"  "+Roi.getName());
-		waitForUser("Step 2: Blob Approval. Paused for adjustment."+ "\n"+
-		""+"\n"+"");		
-		
-		if(matches(Roi.getName(), ".*blob.*")) {  //might be throwing error	
-			selectWindow("duplicate");//
-			roiManager("Select", approv1);//this should higlight roi on activated window
-			Dialog.create("Blobject Manager");
-			Dialog.addChoice(Roi.getName()+": ", newArray("Accept blob", "delete", "XY", "poke"));
-			Dialog.show();		
-			status = Dialog.getChoice();
-			if(status=="Accept blob") {
-	//soo.. nothing happens yet when blobs are approved
-				roiManager("Select", approv1);
-				Roi.setProperty("blob_class", "blob");
-			} if(status=="XY") {
-				roiManager("Select", approv1);
-				Roi.setProperty("blob_class", "XY");//this label is not translating into the 2CO...
-				print('setting property to XY: '+ Roi.getProperty("blob_class") );
-			
-			}if(status=="poke"){
-				waitForUser("paused for poking around");
-			}
-			if(status=="delete") {
-				roiManager("Select", approv1);
-				delete_array = Array.concat(approv1);
-				Roi.setProperty("blob_class", "delete");
-			}//error might be generated here, because a single thing isn't selected
-		}								
-    }
-//2nd automation step --- added foci, 
-//1st approval step, approve complete blobjects
-//2nd arroval step, make new blobjects
 
 //make new blobjects
 setTool('wand');
-waitForUser("Step 3: Make new blobs"); //for createing blobs that the computer doesn't recognize and 
+waitForUser("Step 2: Make new blobs"); //for createing blobs that the computer doesn't recognize and 
 count_before = roiManager("count")-1;
 
 y=100;
 while(y>1){
-	Dialog.create("Step 3: Blob Creation");
+	Dialog.create("Step 2: Blob Creation");
 	Dialog.addChoice("Create more blobjects?", newArray("new blob", "stitch", "finish", "poke")); 
 // add edit for stitching SC to make more blobjects
 	Dialog.show();
@@ -298,9 +265,19 @@ while(y>1){
 		} 
 //stitch should be applied to SC's not blobject
 	if(more_blobs == "stitch"){	
-		//create windows to get required input.		
-		///run stich function,   SC1, SC2		
-		//Stich(
+		Dialog.create("starting the Stitching process. click on centromere"); // asses if centromere rois are in yet
+		Dialog.show();
+		waitForUser("choose SC pieces to join. Centromere SC first");
+		Dialog.create("choose SC pieces to join. Centromere SC first");
+		Dialog.addNumber("centromere", 0);
+		Dialog.addNumber("first", 0);
+		Dialog.addNumber("second", 0);
+		Dialog.show();
+		cent_indx = Dialog.getNumber();
+		first = Dialog.getNumber();;
+		sec = Dialog.getNumber();;;
+		Stitch(first, sec, cent_indx);
+		roiManager("update");
 	}
 	if(more_blobs == "poke"){
 //pause window to poke arround
@@ -315,33 +292,41 @@ print("finished making new blobs");
 wait(50);
 //
 // second approval step, for manually created blobs. Currently it has to cycle all the way through
-selectImage(1);
+
 //aprov2_indx = (roiManager("count")-1) - count_before; 
 q=100;
 print("start second approval match");//this prints, 
-while(q>10){//change q, and the stuff within the loop is still running
-	for(aprv2=roiManager("count")-1; aprv2 > centromereCount+fociCount+scCount; aprv2--){ //start at SC
-		roiManager("Select", aprv2);
-		print("Confirm blobs. Checking blobs " + aprv2 +"  "+Roi.getName());
-		waitForUser("Step 2: Blob Approval. Paused for adjustment."+ "\n"+
-		""+"\n"+"");		
-		
-		if(matches(Roi.getName(), ".*blob.*")) { 
-			roiManager("Select", aprv2);
+selectWindow("duplicate");
+roiManager("Show None");//trying to get the high
 
-			roiManager("Select", aprv2);//this should higlight roi on activated window
-			Dialog.create("Blobject Manager");
+//while(q>10){//change q, and the stuff within the loop is still running
+//the above while, means that the finish selection needs to be made before the cycle is complete	
+for(aprv2=roiManager("count")-1; aprv2 > centromereCount+fociCount+scCount; aprv2--){ //start at SC
+	roiManager("Select", aprv2); // this should make the selection
+	print("Confirm blobs. Checking blobs " + aprv2 +"  "+Roi.getName());
+	waitForUser("Step 2: Blob Approval. Paused for adjustment."+ "\n"+
+	""+"\n"+"");
+	roiManager("Select", aprv2);
+	if(matches(Roi.getName(), ".*blob.*")) { 
+		roiManager("Select", aprv2); //make sure that this selection is visble
+						Dialog.create("Blobject Manager");
 			Dialog.addChoice(Roi.getName()+": ", newArray("Accept blob", "delete", "XY", "poke", "finish"));
 			Dialog.show();		
 			status2 = Dialog.getChoice();
 			if(status2 =="Accept blob") {
 				roiManager("Select", aprv2);
 				Roi.setProperty("blob_class", "blob");//before bloject, 	
+				roiManager("Set Color", "blue");
+				roiManager("Set Line Width", 0);
+				roiManager("update");
 			}
 			if(status2 =="XY"){
 				roiManager("Select", aprv2);
-				Roi.setProperty("blob_class", "XY");//this label is not translating into the 2CO...
+				Roi.setProperty("blob_class", "XY");//this label is not translating into the 2CO...	
+				roiManager("Set Color", "blue");
+				roiManager("Set Line Width", 0);
 				print('setting property to XY: '+ Roi.getProperty("blob_class") );
+				roiManager("update");
 			}
 			if(status2 =="Delete"){
 				delete_array = Array.concat(aprv2);
@@ -353,7 +338,7 @@ while(q>10){//change q, and the stuff within the loop is still running
 				}
 			}
 		}
-	}	
+//	}	
 
 	
 //create Blobjects, blobs + foci
@@ -401,7 +386,7 @@ print("running SC total function");
 c = SC_totals();
 
 //f = File.open("");
-f = File.open("/Users/alpeterson7/Documents/imageAnalysis/hand measures/G male/"+T+".txt");//title
+f = File.open("/Users/alpeterson7/Documents/imageAnalysis/hand measures/WSB male/"+T+".txt");//title
 //f = File.open("/Users/April/Desktop/"+T+".txt"); // create unique file for each image -- with title of image.
 print(f,"image title"+"\t"+"blobject name"+"\t"+"SClength results"+"\t"+"SC length array"+"\t"+"correct"+"\t" +"blobjectClass"+"\t"+"reverse"+
 "\t"+"IFD"+"\t"+"prox foci position"+"\t"+"distal foci position"+"\t"+"notes");
@@ -776,7 +761,6 @@ if(second_end == true){
 	//reverse sec array
 	Sspx = Array.reverse(Sspx);
 	Sspy = Array.reverse(Sspy);
-
 	Cat_array_x = Array.concat(Rspx,Sspx);
 	Cat_array_y = Array.concat(Rspy,Sspy); //
 }
@@ -785,7 +769,7 @@ if(second_end == true){
 Roi.setPolylineSplineAnchors(Cat_array_x, Cat_array_y);
 roiManager("add & draw");
 roiManager("Select", roiManager("Count")-1);
-roiManager("rename", roiManager("index")-1 + "SC stitchtd");//the stitchd were being named incorrectly
+roiManager("rename", roiManager("index") + "SC stitchtd");// removed -1 from index
 roiManager("measure");
 length_shape1 = getResult('Length', nResults-1);
 }//end Stich function
@@ -801,39 +785,47 @@ return false;
 function SC_totals(){
 SC_XY_total = 0;
 SC_A_total = 0;
+//aSC_A_total = 0;
+//aSC_XY_total = 0;
 SC_A_num =0;
 SC_XY_num =0;
+//add values for array
 for(c=0;c<roiManager("count");c++) {
 	roiManager("select", c);
 	if(matches(Roi.getName(), ".*blob.*")){
 		obj_class = Roi.getProperty("blob_class");
+		
 		if(obj_class == "XY"){
 			//sc length results aren'y set yet
-			XY_length = Roi.getProperty("SC Results length");
-			print(" XY math: " + XY_length +" + " + SC_XY_total);
+			rXY_length = Roi.getProperty("SC Results length");
+			print(" XY math: " + rXY_length +" + " + SC_XY_total);
 			//XY_length = Roi.getProperty("SC array length");
-			SC_XY_total = abs(parseFloat(XY_length) + parseFloat(SC_XY_total));
+			SC_XY_total = abs(parseFloat(rXY_length) + parseFloat(SC_XY_total));
+			//SC_XY_total = abs(parseFloat(rXY_length) + parseFloat(SC_XY_total));
 			SC_XY_num = abs(parseFloat(SC_XY_num)+1);
 		} 
 //adding the || blob, will allow for calculation of blobs which didn't go through makeblobject		
 		if(obj_class == "1CO" || obj_class == "blob"){
-			a_length = Roi.getProperty("SC Results length");
+			r_length = Roi.getProperty("SC Results length");
 			//a_length = Roi.getProperty("SC array length");
-			print(" 1CO math: " + a_length +" + " + SC_A_total);
-			SC_A_total = abs(parseFloat(a_length) + parseFloat(SC_A_total));
+			//print(" 1CO math: " + r_length +" + " + SC_A_total);
+			SC_A_total = abs(parseFloat(r_length) + parseFloat(SC_A_total));
+			//SC_A_total = abs(parseFloat(a_length) + parseFloat(SC_A_total));
 			SC_A_num = abs(parseFloat(SC_A_num)+1);	
 	}
 		if(obj_class == "2CO"){ //removing additional blobs since I think SC is being added multiple times.
-			a_length = Roi.getProperty("SC Results length");
+			r_length = Roi.getProperty("SC Results length");
 			//a_length = Roi.getProperty("SC array length");
 			//print(" 2CO math: " + a_length + " + " + SC_A_total);
-			SC_A_total = abs(parseFloat(a_length) + parseFloat(SC_A_total));
+			SC_A_total = abs(parseFloat(r_length) + parseFloat(SC_A_total));
+			//SC_A_total = abs(parseFloat(a_length) + parseFloat(SC_A_total));
 			SC_A_num = abs(parseFloat(SC_A_num)+1);	
 		}
 		if(obj_class == "3CO"){
-			a_length = Roi.getProperty("SC Results length");
+			r_length = Roi.getProperty("SC Results length");
 			//a_length = Roi.getProperty("SC array length");
-			SC_A_total =  abs(parseFloat(a_length) + parseFloat(SC_A_total));
+			SC_A_total =  abs(parseFloat(r_length) + parseFloat(SC_A_total));
+			//SC_A_total =  abs(parseFloat(a_length) + parseFloat(SC_A_total));
 			SC_A_num = abs(parseFloat(SC_A_num)+1);	
 		}		
 	   }
